@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bartab-shell-v4';
+const CACHE_NAME = 'bartab-shell-v5';
 const APP_SHELL = ['./', './index.html', './style.css', './script.js', './manifest.json'];
 
 self.addEventListener('install', (event) => {
