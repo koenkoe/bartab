@@ -1,80 +1,93 @@
-/* BarTab: alle data blijft lokaal in deze browser. Bedragen worden als centen bewaard. */
+﻿/* BarTab: lokale administratie voor een bar. Bedragen worden altijd als hele centen bewaard. */
 const STORAGE_KEY = 'bartab-state-v1';
+const ADMIN_PASSWORD = 'bier123'; // Wijzig dit wachtwoord hier als dat later nodig is.
 const DEFAULT_DRINKS = [
-  { id: 'beer', name: 'Bier', price: 300 }, { id: 'wine', name: 'Wijn', price: 450 },
-  { id: 'soft', name: 'Frisdrank', price: 275 }, { id: 'water', name: 'Water', price: 200 },
-  { id: 'coffee', name: 'Koffie', price: 250 }, { id: 'special', name: 'Speciaalbier', price: 500 }
+  { id: 'beer', name: 'Bier', price: 300, stock: 0, refillBaseline: 0 }, { id: 'wine', name: 'Wijn', price: 450, stock: 0, refillBaseline: 0 },
+  { id: 'soft', name: 'Frisdrank', price: 275, stock: 0, refillBaseline: 0 }, { id: 'water', name: 'Water', price: 200, stock: 0, refillBaseline: 0 },
+  { id: 'coffee', name: 'Koffie', price: 250, stock: 0, refillBaseline: 0 }, { id: 'special', name: 'Speciaalbier', price: 500, stock: 0, refillBaseline: 0 }
 ];
-let state = loadState();
-let activeTabId = null;
+let adminUnlocked = false;
+let activeGroupId = null;
+let groupLocked = false;
 let modalMode = null;
-let modalDrinkId = null;
+let modalData = {};
 let toastTimer;
-
 const $ = (selector) => document.querySelector(selector);
-const formatMoney = (cents) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+const formatMoney = (cents) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format((cents || 0) / 100);
 const makeId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const todayStart = () => { const date = new Date(); date.setHours(0, 0, 0, 0); return date.getTime(); };
+const escapeHtml = (value) => { const div = document.createElement('div'); div.textContent = value ?? ''; return div.innerHTML; };
+
+function normalizeDrink(drink) { return { ...drink, stock: Number.isFinite(drink.stock) ? drink.stock : 0, refillBaseline: Number.isFinite(drink.refillBaseline) ? drink.refillBaseline : (Number.isFinite(drink.stock) ? drink.stock : 0) }; }
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && Array.isArray(saved.tabs) && Array.isArray(saved.drinks)) return saved;
+    if (saved && Array.isArray(saved.drinks)) {
+      const next = { drinks: saved.drinks.map(normalizeDrink), customers: saved.customers || [], groups: saved.groups || [], history: saved.history || [], tabs: saved.tabs || [], lastRefillAt: saved.lastRefillAt || null };
+      migrateLegacyTabs(next); ensureHomeCustomer(next); return next;
+    }
   } catch (error) { console.warn('Opgeslagen BarTab-data kon niet worden gelezen.', error); }
-  return { tabs: [], drinks: DEFAULT_DRINKS };
+  const next = { drinks: DEFAULT_DRINKS.map(normalizeDrink), customers: [], groups: [], history: [], tabs: [], lastRefillAt: null }; ensureHomeCustomer(next); return next;
 }
+function migrateLegacyTabs(next) {
+  if (!next.tabs.length || next.customers.length) return;
+  next.tabs.forEach((tab) => { const customer = { id: makeId('customer'), name: tab.name, balance: 0, lastOrderAt: tab.createdAt || 0 }; next.customers.push(customer); (tab.items || []).forEach((item) => { const amount = item.price * item.quantity; customer.balance -= amount; next.history.push({ id: makeId('history'), type: 'order', customerId: customer.id, customerName: customer.name, drinkName: item.name, quantity: item.quantity, amount, createdAt: tab.createdAt || Date.now() }); }); });
+}
+function ensureHomeCustomer(next) { if (!next.customers.some((customer) => customer.name.toLowerCase() === 'thuis')) next.customers.unshift({ id: 'home-customer', name: 'Thuis', balance: 0, lastOrderAt: 0 }); }
+let state = loadState();
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-function showView(viewId) { document.querySelectorAll('.view').forEach((view) => view.classList.toggle('is-hidden', view.id !== viewId)); }
+function showView(viewId) { document.querySelectorAll('.view').forEach((view) => view.classList.toggle('is-hidden', view.id !== `${viewId}-view` && view.id !== viewId)); }
 function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('is-visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2400); }
-function getActiveTab() { return state.tabs.find((tab) => tab.id === activeTabId); }
-function tabTotal(tab) { return tab.items.reduce((total, item) => total + item.price * item.quantity, 0); }
-function itemCount(tab) { return tab.items.reduce((total, item) => total + item.quantity, 0); }
-
-function renderHome() {
-  const list = $('#tabs-list'); list.innerHTML = '';
-  $('#tab-count').textContent = state.tabs.length;
-  $('#empty-state').classList.toggle('is-hidden', state.tabs.length > 0);
-  state.tabs.forEach((tab) => {
-    const card = document.createElement('button'); card.className = 'tab-card'; card.dataset.tabId = tab.id;
-    card.innerHTML = `<div class="tab-card-top"><h3>${escapeHtml(tab.name)}</h3><span aria-hidden="true">›</span></div><div><div class="tab-card-total">${formatMoney(tabTotal(tab))}</div><div class="tab-card-meta">${itemCount(tab)} ${itemCount(tab) === 1 ? 'item' : 'items'}</div></div>`;
-    list.appendChild(card);
-  });
+function getCustomer(id) { return state.customers.find((customer) => customer.id === id); }
+function getGroup(id) { return state.groups.find((group) => group.id === id); }
+function isHome(customer) { return customer.name.toLowerCase() === 'thuis'; }
+function parsePrice(value) { const number = Number.parseFloat(String(value).trim().replace(',', '.')); return Number.isFinite(number) && number > 0 ? Math.round(number * 100) : null; }
+function openModal(mode, data = {}) { modalMode = mode; modalData = data; $('#modal').classList.remove('is-hidden'); $('#modal-error').textContent = ''; const fields = $('#modal-fields'); let title = 'BarTab'; let content = '';
+  if (mode === 'password') { title = 'Admin toegang'; content = '<label for="modal-password">Wachtwoord</label><input id="modal-password" type="password" autocomplete="current-password" required>'; }
+  if (mode === 'customer-order') { title = `Bestelling voor ${escapeHtml(data.customer.name)}`; content = `<div class="order-picker">${state.drinks.map((drink) => `<div class="picker-row"><div><strong>${escapeHtml(drink.name)}</strong><span>${formatMoney(drink.price)}</span></div><div class="quantity-controls"><button type="button" data-picker="down" data-drink-id="${drink.id}">âˆ’</button><span id="pick-${drink.id}">0</span><button type="button" data-picker="up" data-drink-id="${drink.id}">ï¼‹</button></div></div>`).join('')}</div>`; }
+  if (mode === 'drink') { title = data.drink ? 'Drank bewerken' : 'Drank toevoegen'; content = `<label for="modal-name">Naam</label><input id="modal-name" required maxlength="40" value="${escapeHtml(data.drink?.name || '')}"><label for="modal-price">Prijs</label><input id="modal-price" required inputmode="decimal" placeholder="0,00" value="${data.drink ? (data.drink.price / 100).toFixed(2).replace('.', ',') : ''}">`; }
+  if (mode === 'customer') { title = data.customer ? 'Klant bewerken' : 'Klant toevoegen'; content = `<label for="modal-name">Naam</label><input id="modal-name" required maxlength="40" value="${escapeHtml(data.customer?.name || '')}">`; }
+  if (mode === 'deposit') { title = `Bijstorting voor ${escapeHtml(data.customer.name)}`; content = '<label for="modal-price">Bedrag</label><input id="modal-price" required inputmode="decimal" placeholder="0,00">'; }
+  if (mode === 'group') { title = data.group ? 'Groep bewerken' : 'Nieuwe groep'; content = `<label for="modal-name">Groepsnaam</label><input id="modal-name" required maxlength="50" value="${escapeHtml(data.group?.name || '')}">`; }
+  if (mode === 'group-members') { title = `Klanten in ${escapeHtml(data.group.name)}`; content = `<div class="checkbox-list">${state.customers.filter((customer) => !isHome(customer)).map((customer) => `<label class="check-row"><input type="checkbox" data-member-id="${customer.id}" ${data.group.customerIds.includes(customer.id) ? 'checked' : ''}>${escapeHtml(customer.name)}</label>`).join('')}</div>`; }
+  if (mode === 'refill') { title = 'Hervulling'; content = `<p class="muted">Verbruik sinds ${state.lastRefillAt ? new Date(state.lastRefillAt).toLocaleString('nl-NL') : 'de start'}:</p>${state.drinks.map((drink) => `<div class="refill-row"><span>${escapeHtml(drink.name)} <small>(verbruik: ${Math.max(0, drink.refillBaseline - drink.stock)})</small></span><input type="number" min="0" step="1" inputmode="numeric" data-refill-id="${drink.id}" placeholder="Bijgevuld"></div>`).join('')}`; }
+  fields.innerHTML = content; $('#modal-title').innerHTML = title; $('#modal-form').querySelector('button[type="submit"]').textContent = mode === 'password' ? 'Inloggen' : mode === 'customer-order' ? 'Bestelling bevestigen' : 'Opslaan'; const first = fields.querySelector('input'); if (first) first.focus(); }
+function closeModal() { $('#modal').classList.add('is-hidden'); modalMode = null; modalData = {}; }
+function renderHome(target = '#customers-list', customerIds = null) { const list = $(target); if (!list) return; list.innerHTML = ''; let customers = state.customers.filter((customer) => !customerIds || customerIds.includes(customer.id)); customers.sort((a, b) => isHome(a) ? -1 : isHome(b) ? 1 : (b.lastOrderAt || 0) - (a.lastOrderAt || 0)); $('#customer-count').textContent = state.customers.length; $('#empty-state').classList.toggle('is-hidden', customers.length > 0); customers.forEach((customer) => { const button = document.createElement('button'); button.className = 'customer-card'; button.dataset.customerId = customer.id; button.innerHTML = `<span class="customer-symbol">${isHome(customer) ? 'âŒ‚' : 'â—'}</span><strong>${escapeHtml(customer.name)}</strong>${isHome(customer) ? '<small>Logboek zonder saldo</small>' : `<span class="customer-balance ${customer.balance < 0 ? 'negative' : ''}">${formatMoney(customer.balance)}</span>`}`; list.appendChild(button); }); }
+function renderGroups() { const list = $('#groups-list'); list.innerHTML = ''; state.groups.forEach((group) => { const button = document.createElement('button'); button.className = 'group-row'; button.dataset.groupId = group.id; button.innerHTML = `<strong>${escapeHtml(group.name)}</strong><span>${group.customerIds.length} klanten â€º</span>`; list.appendChild(button); }); }
+function renderGroup() { const group = getGroup(activeGroupId); if (!group) return; $('#group-title').textContent = group.name; $('#group-lock').textContent = groupLocked ? '[LOCK]' : '[OPEN]'; $('#group-lock').setAttribute('aria-label', groupLocked ? 'Groep ontgrendelen' : 'Groep vergrendelen'); $('.group-back').classList.toggle('is-hidden', groupLocked); renderHome('#group-customers', group.customerIds); }
+function renderAssortment() { const list = $('#settings-list'); list.innerHTML = ''; state.drinks.forEach((drink) => { const row = document.createElement('div'); row.className = 'setting-row'; row.innerHTML = `<strong>${escapeHtml(drink.name)}</strong><span class="setting-price">${formatMoney(drink.price)}</span><button class="small-button" data-drink-action="edit" data-drink-id="${drink.id}" aria-label="${escapeHtml(drink.name)} bewerken">âœŽ</button><button class="small-button danger" data-drink-action="delete" data-drink-id="${drink.id}" aria-label="${escapeHtml(drink.name)} verwijderen">Ã—</button>`; list.appendChild(row); }); }
+function renderInventory() { const list = $('#inventory-list'); list.innerHTML = ''; state.drinks.forEach((drink) => { const row = document.createElement('div'); row.className = 'inventory-row'; row.innerHTML = `<strong>${escapeHtml(drink.name)}</strong><span>Voorraad</span><input type="number" min="0" step="1" value="${drink.stock}" data-stock-id="${drink.id}" aria-label="Voorraad ${escapeHtml(drink.name)}">`; list.appendChild(row); }); }
+function renderCustomersAdmin() { const list = $('#admin-customers-list'); list.innerHTML = ''; state.customers.filter((customer) => !isHome(customer)).forEach((customer) => { const row = document.createElement('div'); row.className = 'setting-row'; row.innerHTML = `<strong>${escapeHtml(customer.name)}</strong><span class="setting-price">${formatMoney(customer.balance)}</span><button class="small-button" data-customer-action="edit" data-customer-id="${customer.id}" aria-label="Klant bewerken">âœŽ</button><button class="small-button danger" data-customer-action="delete" data-customer-id="${customer.id}" aria-label="Klant verwijderen">Ã—</button>`; list.appendChild(row); }); renderAdminGroups(); }
+function renderAdminGroups() { const list = $('#admin-groups-list'); list.innerHTML = '<h3 class="list-heading">Groepen</h3>'; state.groups.forEach((group) => { const row = document.createElement('div'); row.className = 'setting-row'; row.innerHTML = `<strong>${escapeHtml(group.name)}</strong><span>${group.customerIds.length} klanten</span><button class="small-button" data-group-action="members" data-group-id="${group.id}" aria-label="Groepsleden beheren">âœŽ</button><button class="small-button danger" data-group-action="delete" data-group-id="${group.id}" aria-label="Groep verwijderen">Ã—</button>`; list.appendChild(row); }); }
+function renderHistory() { const search = ($('#history-search')?.value || '').toLowerCase(); const dateFilter = $('#history-date')?.value || 'all'; const start = dateFilter === 'today' ? todayStart() : dateFilter === 'week' ? Date.now() - 7 * 86400000 : 0; const list = $('#history-list'); list.innerHTML = ''; state.history.filter((entry) => (!search || entry.customerName.toLowerCase().includes(search)) && entry.createdAt >= start).sort((a, b) => b.createdAt - a.createdAt).forEach((entry) => { const row = document.createElement('div'); row.className = 'history-row'; row.innerHTML = `<div><strong>${escapeHtml(entry.customerName)}</strong><span>${escapeHtml(entry.type === 'deposit' ? 'Bijstorting' : `${entry.quantity} Ã— ${entry.drinkName}`)}</span></div><time>${new Date(entry.createdAt).toLocaleString('nl-NL')}</time><b class="${entry.type === 'deposit' ? 'positive' : ''}">${entry.type === 'deposit' ? '+' : '-'}${formatMoney(entry.amount)}</b>`; list.appendChild(row); }); if (!list.children.length) list.innerHTML = '<p class="empty-order">Geen transacties gevonden.</p>'; }
+function renderBalances() { const list = $('#balances-list'); list.innerHTML = ''; state.customers.filter((customer) => !isHome(customer)).sort((a, b) => a.balance - b.balance).forEach((customer) => { const row = document.createElement('div'); row.className = 'balance-row'; row.innerHTML = `<div><strong>${escapeHtml(customer.name)}</strong><span class="${customer.balance < 0 ? 'negative' : ''}">${formatMoney(customer.balance)}</span></div><button class="secondary-button compact-button" data-action="deposit" data-customer-id="${customer.id}">Bedrag toevoegen</button>`; list.appendChild(row); }); }
+function renderAll() { renderHome(); renderGroups(); renderAssortment(); renderInventory(); renderCustomersAdmin(); renderHistory(); renderBalances(); }
+function addOrder(customer, selections) { const now = Date.now(); let total = 0; selections.forEach(({ drink, quantity }) => { const amount = drink.price * quantity; total += amount; drink.stock = Math.max(0, drink.stock - quantity); state.history.push({ id: makeId('history'), type: 'order', customerId: customer.id, customerName: customer.name, drinkName: drink.name, quantity, amount, createdAt: now }); }); if (!isHome(customer)) { customer.balance -= total; customer.lastOrderAt = now; } saveState(); renderAll(); closeModal(); showToast('Bestelling toegevoegd.'); }
+function submitModal(event) { event.preventDefault(); const error = $('#modal-error'); error.textContent = '';
+  if (modalMode === 'password') { if ($('#modal-password').value !== ADMIN_PASSWORD) { error.textContent = 'Onjuist wachtwoord. Probeer opnieuw.'; $('#modal-password').focus(); return; } if (modalData.unlock) groupLocked = false; else if (modalData.lock) groupLocked = true; else { adminUnlocked = true; showView('admin-view'); } closeModal(); if (activeGroupId) renderGroup(); return; }
+  if (modalMode === 'customer-order') { const selections = state.drinks.map((drink) => ({ drink, quantity: Number($(`#pick-${drink.id}`)?.textContent || 0) })).filter((item) => item.quantity > 0); if (!selections.length) { error.textContent = 'Kies minimaal Ã©Ã©n drankje.'; return; } addOrder(modalData.customer, selections); return; }
+  if (modalMode === 'drink') { const name = $('#modal-name').value.trim(); const price = parsePrice($('#modal-price').value); if (!name || !price) { error.textContent = 'Vul een naam en geldige prijs in.'; return; } if (modalData.drink) Object.assign(modalData.drink, { name, price }); else state.drinks.push({ id: makeId('drink'), name, price, stock: 0, refillBaseline: 0 }); saveState(); closeModal(); renderAll(); return; }
+  if (modalMode === 'customer') { const name = $('#modal-name').value.trim(); if (!name) return; if (modalData.customer) modalData.customer.name = name; else state.customers.push({ id: makeId('customer'), name, balance: 0, lastOrderAt: 0 }); saveState(); closeModal(); renderAll(); return; }
+  if (modalMode === 'deposit') { const amount = parsePrice($('#modal-price').value); if (!amount) { error.textContent = 'Vul een geldig bedrag in.'; return; } const customer = modalData.customer; customer.balance += amount; state.history.push({ id: makeId('history'), type: 'deposit', customerId: customer.id, customerName: customer.name, amount, quantity: 1, createdAt: Date.now() }); saveState(); closeModal(); renderAll(); showToast('Bijstorting verwerkt.'); return; }
+  if (modalMode === 'group') { const name = $('#modal-name').value.trim(); if (!name) return; if (modalData.group) { modalData.group.name = name; saveState(); closeModal(); renderAll(); } else { const group = { id: makeId('group'), name, customerIds: [] }; state.groups.push(group); saveState(); openModal('group-members', { group }); } return; }
+  if (modalMode === 'group-members') { const group = modalData.group; group.customerIds = [...document.querySelectorAll('[data-member-id]:checked')].map((input) => input.dataset.memberId); saveState(); closeModal(); renderAll(); return; }
+  if (modalMode === 'refill') { document.querySelectorAll('[data-refill-id]').forEach((input) => { const drink = state.drinks.find((entry) => entry.id === input.dataset.refillId); const amount = Number.parseInt(input.value, 10); if (drink && Number.isFinite(amount) && amount >= 0) drink.stock += amount; }); state.drinks.forEach((drink) => { drink.refillBaseline = drink.stock; }); state.lastRefillAt = Date.now(); saveState(); closeModal(); renderInventory(); showToast('Hervulling opgeslagen.'); }
 }
-function renderTab() {
-  const tab = getActiveTab(); if (!tab) return showView('home-view');
-  $('#tab-title').textContent = tab.name; $('#tab-total').textContent = formatMoney(tabTotal(tab)); $('#order-count').textContent = `${itemCount(tab)} ${itemCount(tab) === 1 ? 'item' : 'items'}`;
-  const drinks = $('#drinks-list'); drinks.innerHTML = '';
-  state.drinks.forEach((drink) => { const button = document.createElement('button'); button.className = 'drink-button'; button.dataset.drinkId = drink.id; button.innerHTML = `<span class="drink-name">${escapeHtml(drink.name)}</span><span class="drink-price">${formatMoney(drink.price)}</span>`; drinks.appendChild(button); });
-  const orders = $('#order-list'); orders.innerHTML = '';
-  if (!tab.items.length) { orders.innerHTML = '<p class="empty-order">Nog niets besteld. Tik hierboven op een drank.</p>'; return; }
-  tab.items.forEach((item) => { const row = document.createElement('div'); row.className = 'order-row'; row.innerHTML = `<div class="order-name">${escapeHtml(item.name)}</div><div class="order-price">${formatMoney(item.price * item.quantity)}</div><div class="quantity-controls"><button data-item-action="decrease" data-item-id="${item.id}" aria-label="Een ${escapeHtml(item.name)} minder">−</button><span>${item.quantity}</span><button data-item-action="increase" data-item-id="${item.id}" aria-label="Een ${escapeHtml(item.name)} meer">＋</button></div>`; orders.appendChild(row); });
-}
-function renderSettings() {
-  const list = $('#settings-list'); list.innerHTML = '';
-  state.drinks.forEach((drink) => { const row = document.createElement('div'); row.className = 'setting-row'; row.innerHTML = `<strong>${escapeHtml(drink.name)}</strong><span class="setting-price">${formatMoney(drink.price)}</span><button class="small-button" data-drink-action="edit" data-drink-id="${drink.id}" aria-label="${escapeHtml(drink.name)} bewerken">✎</button><button class="small-button danger" data-drink-action="delete" data-drink-id="${drink.id}" aria-label="${escapeHtml(drink.name)} verwijderen">×</button>`; list.appendChild(row); });
-}
-function renderAll() { renderHome(); renderTab(); renderSettings(); }
-function escapeHtml(value) { const div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
-function openModal(mode, drink = null) { modalMode = mode; modalDrinkId = drink?.id ?? null; $('#modal').classList.remove('is-hidden'); $('#modal-title').textContent = mode === 'new-tab' ? 'Nieuwe tab' : mode === 'custom-item' ? 'Eigen item' : drink ? 'Drank bewerken' : 'Drank toevoegen'; $('#name-label').textContent = mode === 'new-tab' ? 'Naam of tafelnummer' : 'Naam'; $('#modal-name').value = mode === 'edit-drink' ? drink.name : ''; $('#price-label').classList.toggle('is-hidden', mode === 'new-tab'); $('#modal-price').classList.toggle('is-hidden', mode === 'new-tab'); $('#modal-price').value = mode === 'edit-drink' ? (drink.price / 100).toFixed(2).replace('.', ',') : ''; $('#modal-name').focus(); }
-function closeModal() { $('#modal').classList.add('is-hidden'); modalMode = null; modalDrinkId = null; }
-function parsePrice(value) { const normalized = String(value).trim().replace(',', '.'); const number = Number.parseFloat(normalized); return Number.isFinite(number) && number > 0 ? Math.round(number * 100) : null; }
-function addDrinkToTab(drink) { const tab = getActiveTab(); const existing = tab.items.find((item) => item.drinkId === drink.id && item.name === drink.name && item.price === drink.price); if (existing) existing.quantity += 1; else tab.items.push({ id: makeId('item'), drinkId: drink.id, name: drink.name, price: drink.price, quantity: 1 }); saveState(); renderTab(); }
-function submitModal(event) { event.preventDefault(); const name = $('#modal-name').value.trim(); if (!name) return;
-  if (modalMode === 'new-tab') { const tab = { id: makeId('tab'), name, items: [], createdAt: Date.now() }; state.tabs.push(tab); activeTabId = tab.id; saveState(); closeModal(); renderAll(); showView('tab-view'); return; }
-  const price = parsePrice($('#modal-price').value); if (!price) return showToast('Vul een geldige prijs in.');
-  if (modalMode === 'custom-item') { addDrinkToTab({ id: makeId('custom'), name, price }); closeModal(); showToast('Item toegevoegd.'); return; }
-  if (modalMode === 'add-drink') { state.drinks.push({ id: makeId('drink'), name, price }); } else if (modalMode === 'edit-drink') { const drink = state.drinks.find((item) => item.id === modalDrinkId); if (drink) { drink.name = name; drink.price = price; } }
-  saveState(); closeModal(); renderAll();
-}
-function updateQuantity(itemId, delta) { const tab = getActiveTab(); const item = tab.items.find((entry) => entry.id === itemId); if (!item) return; item.quantity += delta; if (item.quantity <= 0) tab.items = tab.items.filter((entry) => entry.id !== itemId); saveState(); renderTab(); }
+function openAdmin() { if (adminUnlocked) showView('admin-view'); else openModal('password'); }
+function goAdminView(view) { if (!adminUnlocked) return openAdmin(); showView(`${view}-view`); if (view === 'history') renderHistory(); }
 
 document.addEventListener('click', (event) => {
-  const actionElement = event.target.closest('[data-action]'); const tabCard = event.target.closest('[data-tab-id]'); const drinkButton = event.target.closest('[data-drink-id]'); const itemAction = event.target.closest('[data-item-action]'); const drinkAction = event.target.closest('[data-drink-action]');
-  if (actionElement) { const action = actionElement.dataset.action; if (action === 'new-tab') openModal('new-tab'); if (action === 'custom-item') openModal('custom-item'); if (action === 'add-drink') openModal('add-drink'); if (action === 'close-modal') closeModal(); if (action === 'home') { renderHome(); showView('home-view'); } if (action === 'settings') { renderSettings(); showView('settings-view'); } if (action === 'rename-tab') openModal('rename-tab'); if (action === 'checkout') { if (confirm('Deze tab afrekenen en sluiten?')) { state.tabs = state.tabs.filter((tab) => tab.id !== activeTabId); activeTabId = null; saveState(); renderHome(); showView('home-view'); showToast('Tab afgesloten.'); } } }
-  if (tabCard) { activeTabId = tabCard.dataset.tabId; renderTab(); showView('tab-view'); }
-  if (drinkButton && !drinkButton.closest('.tab-card')) { const drink = state.drinks.find((item) => item.id === drinkButton.dataset.drinkId); if (drink) addDrinkToTab(drink); }
-  if (itemAction) updateQuantity(itemAction.dataset.itemId, itemAction.dataset.itemAction === 'increase' ? 1 : -1);
-  if (drinkAction) { const drink = state.drinks.find((item) => item.id === drinkAction.dataset.drinkId); if (!drink) return; if (drinkAction.dataset.drinkAction === 'edit') { openModal('edit-drink', drink); } else if (confirm(`'${drink.name}' verwijderen uit de vaste lijst?`)) { state.drinks = state.drinks.filter((item) => item.id !== drink.id); saveState(); renderAll(); } }
+  const actionElement = event.target.closest('[data-action]'); const action = actionElement?.dataset.action; const customerCard = event.target.closest('.customer-card'); const groupRow = event.target.closest('.group-row'); const adminCard = event.target.closest('[data-admin-view]');
+  if (action === 'admin') return openAdmin(); if (action === 'close-modal') return closeModal(); if (action === 'home') { if (!groupLocked) { showView('home-view'); renderHome(); } return; } if (action === 'admin-home') return showView('admin-view'); if (action === 'add-drink') return openModal('drink'); if (action === 'add-customer') return openModal('customer'); if (action === 'new-group') return openModal('group'); if (action === 'manage-groups') return renderAdminGroups(); if (action === 'refill') return openModal('refill'); if (action === 'deposit') return openModal('deposit', { customer: getCustomer(actionElement.dataset.customerId) });
+  if (action === 'toggle-group-lock') return openModal('password', { lock: !groupLocked, unlock: groupLocked });
+  if (adminCard) return goAdminView(adminCard.dataset.adminView); if (customerCard) return openModal('customer-order', { customer: getCustomer(customerCard.dataset.customerId) });
+  if (groupRow) { activeGroupId = groupRow.dataset.groupId; groupLocked = false; renderGroup(); showView('group-view'); return; }
+  const picker = event.target.closest('[data-picker]'); if (picker) { const value = $(`#pick-${picker.dataset.drinkId}`); value.textContent = Math.max(0, Number(value.textContent) + (picker.dataset.picker === 'up' ? 1 : -1)); return; }
+  const drinkAction = event.target.closest('[data-drink-action]'); if (drinkAction) { const drink = state.drinks.find((item) => item.id === drinkAction.dataset.drinkId); if (drinkAction.dataset.drinkAction === 'edit') openModal('drink', { drink }); else if (confirm(`'${drink.name}' verwijderen?`)) { state.drinks = state.drinks.filter((item) => item.id !== drink.id); saveState(); renderAll(); } return; }
+  const customerAction = event.target.closest('[data-customer-action]'); if (customerAction) { const customer = getCustomer(customerAction.dataset.customerId); if (customerAction.dataset.customerAction === 'edit') openModal('customer', { customer }); else if (confirm(`'${customer.name}' verwijderen?`)) { state.customers = state.customers.filter((item) => item.id !== customer.id); state.groups.forEach((group) => { group.customerIds = group.customerIds.filter((id) => id !== customer.id); }); saveState(); renderAll(); } return; }
+  const groupAction = event.target.closest('[data-group-action]'); if (groupAction) { const group = getGroup(groupAction.dataset.groupId); if (groupAction.dataset.groupAction === 'members') openModal('group-members', { group }); else if (confirm(`Groep '${group.name}' verwijderen?`)) { state.groups = state.groups.filter((item) => item.id !== group.id); saveState(); renderAll(); } }
 });
-$('#modal-form').addEventListener('submit', (event) => { if (modalMode === 'rename-tab') { event.preventDefault(); const name = $('#modal-name').value.trim(); const tab = getActiveTab(); if (name && tab) { tab.name = name; saveState(); renderAll(); closeModal(); } return; } submitModal(event); });
-$('#modal').addEventListener('click', (event) => { if (event.target.id === 'modal') closeModal(); });
-renderAll();
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch((error) => console.warn('Offline-modus kon niet worden geactiveerd.', error)));
+document.addEventListener('input', (event) => { if (event.target.matches('[data-stock-id]')) { const drink = state.drinks.find((item) => item.id === event.target.dataset.stockId); if (drink) { drink.stock = Math.max(0, Number.parseInt(event.target.value, 10) || 0); saveState(); } } if (event.target.id === 'history-search') renderHistory(); });
+$('#history-date').addEventListener('change', renderHistory); $('#modal-form').addEventListener('submit', submitModal); $('#modal').addEventListener('click', (event) => { if (event.target.id === 'modal') closeModal(); });
+renderAll(); if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch((error) => console.warn('Offline-modus kon niet worden geactiveerd.', error)));

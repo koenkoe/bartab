@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#111519">
-  <meta name="description" content="BarTab - eenvoudige drankrekeningen voor de bar">
+  <meta name="description" content="BarTab - drankrekeningen voor de bar">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="style.css">
@@ -12,80 +12,27 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="brand-mark" aria-hidden="true">BT</div>
-    <div>
-      <p class="eyebrow">BARREKENINGEN</p>
-      <h1>BarTab</h1>
-    </div>
-    <button class="icon-button" data-action="settings" aria-label="Instellingen" title="Instellingen">⚙</button>
+    <div class="brand-mark" aria-hidden="true">BT</div><div><p class="eyebrow">BARREKENINGEN</p><h1>BarTab</h1></div>
+    <button class="icon-button" data-action="admin" aria-label="Admin openen" title="Admin">⚙</button>
   </header>
 
   <main id="app" class="app-shell">
     <section id="home-view" class="view" aria-labelledby="home-title">
-      <div class="view-heading">
-        <div>
-          <p class="eyebrow">VANDAAG</p>
-          <h2 id="home-title">Open tabs</h2>
-        </div>
-        <span id="tab-count" class="count-badge">0</span>
+      <div class="view-heading"><div><p class="eyebrow">VANDAAG</p><h2 id="home-title">Klanten</h2></div><span id="customer-count" class="count-badge">0</span></div>
+      <div class="home-layout"><div><div id="customers-list" class="customer-grid"></div><div id="empty-state" class="empty-state is-hidden"><span class="empty-icon" aria-hidden="true">◌</span><h3>Nog geen klanten</h3><p>Voeg klanten toe via het adminpaneel.</p></div></div>
+        <aside class="groups-panel"><div class="section-label-row"><h3>Groepen</h3><button class="small-button" data-action="new-group" aria-label="Groep toevoegen">＋</button></div><div id="groups-list"></div></aside>
       </div>
-      <div id="tabs-list" class="tabs-grid"></div>
-      <div id="empty-state" class="empty-state">
-        <span class="empty-icon" aria-hidden="true">◌</span>
-        <h3>Nog geen open tabs</h3>
-        <p>Start een tab voor een klant of tafel.</p>
-      </div>
-      <button class="primary-button new-tab-button" data-action="new-tab"><span aria-hidden="true">＋</span> Nieuwe tab</button>
     </section>
-
-    <section id="tab-view" class="view is-hidden" aria-labelledby="tab-title">
-      <div class="view-heading tab-heading">
-        <button class="back-button" data-action="home" aria-label="Terug naar overzicht">‹</button>
-        <div class="tab-title-wrap">
-          <p class="eyebrow">OPEN TAB</p>
-          <h2 id="tab-title">-</h2>
-        </div>
-        <button class="icon-button" data-action="rename-tab" aria-label="Tab hernoemen" title="Hernoemen">✎</button>
-      </div>
-      <div class="total-panel">
-        <span>Huidig totaal</span>
-        <strong id="tab-total">€ 0,00</strong>
-      </div>
-      <div class="section-label-row"><h3>Dranken toevoegen</h3><button class="text-button" data-action="custom-item">+ Eigen item</button></div>
-      <div id="drinks-list" class="drinks-grid"></div>
-      <div class="section-label-row order-heading"><h3>Bestelling</h3><span id="order-count">0 items</span></div>
-      <div id="order-list" class="order-list"></div>
-      <button class="checkout-button" data-action="checkout"><span aria-hidden="true">✓</span> Afrekenen en sluiten</button>
-    </section>
-
-    <section id="settings-view" class="view is-hidden" aria-labelledby="settings-title">
-      <div class="view-heading">
-        <div>
-          <p class="eyebrow">BEHEER</p>
-          <h2 id="settings-title">Drankenlijst</h2>
-        </div>
-        <button class="back-button" data-action="home" aria-label="Terug naar overzicht">‹</button>
-      </div>
-      <p class="muted intro-copy">Beheer hier de vaste items die op elke tab beschikbaar zijn.</p>
-      <div id="settings-list" class="settings-list"></div>
-      <button class="primary-button" data-action="add-drink"><span aria-hidden="true">＋</span> Drank toevoegen</button>
-      <div class="settings-note"><span aria-hidden="true">i</span> Wijzigingen worden direct lokaal opgeslagen.</div>
-    </section>
+    <section id="group-view" class="view is-hidden" aria-labelledby="group-title"><div class="view-heading"><button class="back-button group-back" data-action="home" aria-label="Terug naar overzicht">‹</button><div><p class="eyebrow">GROEP</p><h2 id="group-title">-</h2></div><button id="group-lock" class="icon-button" data-action="toggle-group-lock" aria-label="Groep vergrendelen">🔓</button></div><div id="group-customers" class="customer-grid"></div></section>
+    <section id="admin-view" class="view is-hidden" aria-labelledby="admin-title"><div class="view-heading"><div><p class="eyebrow">BEHEER</p><h2 id="admin-title">Admin</h2></div><button class="back-button" data-action="home" aria-label="Terug naar overzicht">‹</button></div><div class="admin-grid"><button class="admin-card" data-admin-view="inventory">📦<strong>Voorraad</strong><span>Voorraad en hervulling</span></button><button class="admin-card" data-admin-view="assortment">💶<strong>Prijzen / Assortiment</strong><span>Dranken en prijzen</span></button><button class="admin-card" data-admin-view="customers">👥<strong>Klanten</strong><span>Klanten en groepen</span></button><button class="admin-card" data-admin-view="history">🧾<strong>Geschiedenis</strong><span>Alle transacties</span></button><button class="admin-card" data-admin-view="balances">⚖️<strong>Balansoverzicht</strong><span>Schulden en bijstortingen</span></button></div></section>
+    <section id="inventory-view" class="view is-hidden sub-view"><div class="view-heading"><button class="back-button" data-action="admin-home" aria-label="Terug naar admin">‹</button><h2>Voorraad</h2><button class="secondary-button compact-button" data-action="refill">Hervulling</button></div><div id="inventory-list" class="admin-list"></div></section>
+    <section id="assortment-view" class="view is-hidden sub-view"><div class="view-heading"><button class="back-button" data-action="admin-home" aria-label="Terug naar admin">‹</button><h2>Prijzen / Assortiment</h2></div><div id="settings-list" class="admin-list"></div><button class="primary-button" data-action="add-drink">＋ Drank toevoegen</button></section>
+    <section id="customers-view" class="view is-hidden sub-view"><div class="view-heading"><button class="back-button" data-action="admin-home" aria-label="Terug naar admin">‹</button><h2>Klanten</h2></div><div id="admin-customers-list" class="admin-list"></div><div class="button-row"><button class="primary-button" data-action="add-customer">＋ Klant toevoegen</button><button class="secondary-button" data-action="manage-groups">Groepen beheren</button></div><div id="admin-groups-list" class="admin-list"></div></section>
+    <section id="history-view" class="view is-hidden sub-view"><div class="view-heading"><button class="back-button" data-action="admin-home" aria-label="Terug naar admin">‹</button><h2>Geschiedenis</h2></div><div class="filter-row"><input id="history-search" type="search" placeholder="Zoek klant..." aria-label="Zoek klant"><select id="history-date"><option value="all">Alles</option><option value="today">Vandaag</option><option value="week">Deze week</option></select></div><div id="history-list" class="admin-list"></div></section>
+    <section id="balances-view" class="view is-hidden sub-view"><div class="view-heading"><button class="back-button" data-action="admin-home" aria-label="Terug naar admin">‹</button><h2>Balansoverzicht</h2></div><div id="balances-list" class="admin-list"></div></section>
   </main>
 
-  <div id="modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-card">
-      <div class="modal-heading"><h2 id="modal-title">Nieuwe tab</h2><button class="icon-button" data-action="close-modal" aria-label="Sluiten">×</button></div>
-      <form id="modal-form">
-        <label id="name-label" for="modal-name">Naam of tafelnummer</label>
-        <input id="modal-name" name="name" type="text" maxlength="40" required autocomplete="off" placeholder="Bijv. Tafel 4 of Alex">
-        <label id="price-label" class="is-hidden" for="modal-price">Prijs</label>
-        <input id="modal-price" class="is-hidden" name="price" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00">
-        <div class="modal-actions"><button type="button" class="secondary-button" data-action="close-modal">Annuleren</button><button type="submit" class="primary-button">Opslaan</button></div>
-      </form>
-    </div>
-  </div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="script.js"></script>
+  <div id="modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-card"><div class="modal-heading"><h2 id="modal-title">BarTab</h2><button class="icon-button" data-action="close-modal" aria-label="Sluiten">×</button></div><form id="modal-form"><div id="modal-fields"></div><div id="modal-error" class="form-error"></div><div class="modal-actions"><button type="button" class="secondary-button" data-action="close-modal">Annuleren</button><button type="submit" class="primary-button">Opslaan</button></div></form></div></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div><script src="script.js"></script>
 </body>
 </html>

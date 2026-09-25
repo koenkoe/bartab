@@ -15,6 +15,12 @@ Maak zelf twee PNG-bestanden en plaats ze in een nieuwe map `icons/`:
 
 De verwijzingen staan al in `manifest.json` en `index.html`. Zonder deze bestanden werkt de app wel, maar toont Android geen aangepast app-icoon.
 
+## Gebruik
+
+Het hoofdscherm toont `Thuis` en alle klanten. Tik op een klant om een bestelling met aantallen samen te stellen. Een bestelling verlaagt direct de balans, vermindert de voorraad en komt in de geschiedenis. `Thuis` wordt wel gelogd, maar heeft geen balans.
+
+Het tandwiel opent na wachtwoordcontrole het adminpaneel. Het standaardwachtwoord is `bier123` en staat bovenaan `script.js` in `ADMIN_PASSWORD`. Binnen een paginasessie wordt het wachtwoord onthouden. Daar beheer je voorraad, assortiment, klanten, groepen, geschiedenis en balansen.
+
 ## Data en uitbreiden
 
-Tabs, bestellingen en de vaste drankenlijst worden opgeslagen onder localStorage-sleutel `bartab-state-v1`. Bedragen worden intern als hele centen opgeslagen; daardoor blijven berekeningen stabiel. De standaarddranken staan bovenaan `script.js` in `DEFAULT_DRINKS`.
+Alle gegevens worden lokaal opgeslagen onder localStorage-sleutel `bartab-state-v1`. Bedragen worden intern als hele centen opgeslagen; daardoor blijven berekeningen stabiel. De standaarddranken staan bovenaan `script.js` in `DEFAULT_DRINKS`. Een bestaande oude tab-structuur wordt bij het laden eenmalig omgezet naar klanten en geschiedenis.
