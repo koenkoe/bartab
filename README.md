@@ -21,6 +21,8 @@ Het hoofdscherm toont `Thuis` en alle klanten. Tik op een klant om een bestellin
 
 Het tandwiel opent na wachtwoordcontrole het adminpaneel. Het standaardwachtwoord is `bier123` en staat bovenaan `script.js` in `ADMIN_PASSWORD`. Binnen een paginasessie wordt het wachtwoord onthouden. Daar beheer je voorraad, assortiment, klanten, groepen, geschiedenis en balansen.
 
+De zichtbare appversie staat in `script.js` in `APP_VERSION`. Verhoog deze waarde bij iedere nieuwe push.
+
 ## Data en uitbreiden
 
 Alle gegevens worden lokaal opgeslagen onder localStorage-sleutel `bartab-state-v1`. Bedragen worden intern als hele centen opgeslagen; daardoor blijven berekeningen stabiel. De standaarddranken staan bovenaan `script.js` in `DEFAULT_DRINKS`. Een bestaande oude tab-structuur wordt bij het laden eenmalig omgezet naar klanten en geschiedenis.

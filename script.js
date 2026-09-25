@@ -1,5 +1,6 @@
 ﻿/* BarTab: lokale administratie voor een bar. Bedragen worden altijd als hele centen bewaard. */
 const STORAGE_KEY = 'bartab-state-v1';
+const APP_VERSION = '1.0.1'; // Verhoog dit bij iedere gepushte release.
 const ADMIN_PASSWORD = 'bier123'; // Wijzig dit wachtwoord hier als dat later nodig is.
 const DEFAULT_DRINKS = [
   { id: 'beer', name: 'Bier', price: 300, stock: 0, refillBaseline: 0 }, { id: 'wine', name: 'Wijn', price: 450, stock: 0, refillBaseline: 0 },
@@ -8,6 +9,7 @@ const DEFAULT_DRINKS = [
 ];
 let adminUnlocked = false;
 let adminUnlockTimer = null;
+let adminIdleTimer = null;
 let activeGroupId = null;
 let groupLocked = false;
 let modalMode = null;
@@ -79,7 +81,7 @@ function submitModal(event) { event.preventDefault(); const error = $('#modal-er
 }
 const ADMIN_VIEW_IDS = ['admin-view', 'inventory-view', 'assortment-view', 'customers-view', 'history-view', 'balances-view'];
 function isAdminViewVisible() { return ADMIN_VIEW_IDS.some((viewId) => !document.getElementById(viewId).classList.contains('is-hidden')); }
-function refreshAdminSession() { clearTimeout(adminUnlockTimer); adminUnlockTimer = setTimeout(() => { adminUnlocked = false; if (isAdminViewVisible()) showView('home-view'); }, 60000); }
+function refreshAdminSession() { clearTimeout(adminUnlockTimer); clearTimeout(adminIdleTimer); adminUnlockTimer = setTimeout(() => { adminUnlocked = false; if (isAdminViewVisible()) showView('home-view'); }, 120000); adminIdleTimer = setTimeout(() => { adminUnlocked = false; if (isAdminViewVisible()) showView('home-view'); }, 120000); }
 function openAdmin() { if (adminUnlocked) { refreshAdminSession(); showView('admin-view'); } else openModal('password'); }
 function goAdminView(view) { if (!adminUnlocked) return openAdmin(); refreshAdminSession(); showView(`${view}-view`); if (view === 'history') renderHistory(); }
 
@@ -98,4 +100,5 @@ document.addEventListener('click', (event) => {
 });
 document.addEventListener('input', (event) => { if (event.target.matches('[data-stock-id]')) { const drink = state.drinks.find((item) => item.id === event.target.dataset.stockId); if (drink) { drink.stock = Math.max(0, Number.parseInt(event.target.value, 10) || 0); saveState(); } } if (event.target.id === 'history-search') renderHistory(); });
 $('#history-date').addEventListener('change', renderHistory); $('#modal-form').addEventListener('submit', submitModal); $('#modal').addEventListener('click', (event) => { if (event.target.id === 'modal') closeModal(); });
-renderAll(); if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then((registration) => registration.update()).catch((error) => console.warn('Offline-modus kon niet worden geactiveerd.', error)));
+['pointerdown', 'keydown', 'input', 'scroll'].forEach((eventName) => document.addEventListener(eventName, () => { if (adminUnlocked && isAdminViewVisible()) refreshAdminSession(); }, { passive: eventName === 'scroll' }));
+renderAll(); $('#app-version').textContent = `v${APP_VERSION}`; if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then((registration) => registration.update()).catch((error) => console.warn('Offline-modus kon niet worden geactiveerd.', error)));
