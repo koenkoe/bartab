@@ -1,0 +1,51 @@
+name: Bump app version
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    if: "!contains(github.event.head_commit.message, '[skip version]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        id: version
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('script.js')
+          text = path.read_text(encoding='utf-8')
+          match = re.search(r"const APP_VERSION = '(\\d+)\\.(\\d+)\\.(\\d+)';", text)
+          if not match:
+              raise SystemExit('APP_VERSION not found')
+
+          major, minor, patch = map(int, match.groups())
+          patch += 1
+          if patch >= 10:
+              minor += patch // 10
+              patch %= 10
+          version = f'{major}.{minor}.{patch}'
+          path.write_text(re.sub(r"const APP_VERSION = '\\d+\\.\\d+\\.\\d+';", f"const APP_VERSION = '{version}';", text, count=1), encoding='utf-8')
+          Path('/tmp/version').write_text(version, encoding='utf-8')
+          PY
+          echo "version=$(cat /tmp/version)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add script.js
+          git commit -m "chore: bump app version to v${{ steps.version.outputs.version }} [skip version]"
+          git push

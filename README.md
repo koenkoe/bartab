@@ -19,9 +19,9 @@ De verwijzingen staan al in `manifest.json` en `index.html`. Zonder deze bestand
 
 Het hoofdscherm toont `Thuis` en alle klanten. Tik op een klant om een bestelling met aantallen samen te stellen. Een bestelling verlaagt direct de balans, vermindert de voorraad en komt in de geschiedenis. `Thuis` wordt wel gelogd, maar heeft geen balans.
 
-Het tandwiel opent na wachtwoordcontrole het adminpaneel. Het standaardwachtwoord is `bier123` en staat bovenaan `script.js` in `ADMIN_PASSWORD`. Binnen een paginasessie wordt het wachtwoord onthouden. Daar beheer je voorraad, assortiment, klanten, groepen, geschiedenis en balansen.
+Het tandwiel opent na wachtwoordcontrole het adminpaneel. Het standaardwachtwoord is `bier123` en staat bovenaan `script.js` in `ADMIN_PASSWORD`. Binnen een paginasessie wordt het wachtwoord onthouden. Daar beheer je voorraad, assortiment, klanten, groepen, geschiedenis en balansen. Voorraad is verdeeld over de koelkast en de kelder. Stel per drank de maximale koelkastcapaciteit in; via **Hervulling** vink je aan wat je hebt bijgevuld. De ingevulde hoeveelheid verhuist dan automatisch van de kelder naar de koelkast. In het balansoverzicht kun je bedragen toevoegen en afhalen.
 
-De zichtbare appversie staat in `script.js` in `APP_VERSION`. Verhoog deze waarde bij iedere nieuwe push.
+De zichtbare appversie staat in `script.js` in `APP_VERSION`. De GitHub Actions-workflow in `.github/workflows/version.yml` verhoogt na iedere push naar `main` automatisch de patchversie. Na `1.0.9` wordt dat `1.1.0`.
 
 ## Data en uitbreiden
 
