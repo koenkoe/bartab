@@ -21,6 +21,8 @@ Het hoofdscherm toont `Thuis` en alle klanten. Tik op een klant om een bestellin
 
 Het tandwiel opent na wachtwoordcontrole het adminpaneel. Het standaardwachtwoord is `bier123` en staat bovenaan `script.js` in `ADMIN_PASSWORD`. Binnen een paginasessie wordt het wachtwoord onthouden. Daar beheer je voorraad, assortiment, klanten, groepen, geschiedenis en balansen. Voorraad is verdeeld over de koelkast en de kelder. Stel per drank de maximale koelkastcapaciteit in; via **Hervulling** vink je aan wat je hebt bijgevuld. De ingevulde hoeveelheid verhuist dan automatisch van de kelder naar de koelkast. In het balansoverzicht kun je bedragen toevoegen en afhalen.
 
+Onder **Statistiek** staat links `Algemeen` en daaronder iedere klant. Algemeen toont het meest verkochte drankje en een leaderboard van de kopers daarvan. Wanneer een drankje bijna op is, verschijnt na een bestelling tijdelijk een rode waarschuwing onderin.
+
 De zichtbare appversie staat in `script.js` in `APP_VERSION`. De GitHub Actions-workflow in `.github/workflows/version.yml` verhoogt na iedere push naar `main` automatisch de patchversie. Na `1.0.9` wordt dat `1.1.0`.
 
 ## Data en uitbreiden
