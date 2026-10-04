@@ -15,8 +15,9 @@
     .refill-row { justify-content: flex-start; }
     .refill-row input { width: 22px; min-width: 22px; min-height: 22px; accent-color: var(--accent); }
     .refill-row span { display: flex; flex-direction: column; gap: 4px; }
-    .balance-actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 8px; }
-    .balance-actions .compact-button { white-space: nowrap; padding-inline: 10px; }
+    .balance-row { grid-template-columns: minmax(0, 1fr) max-content; }
+    .balance-row .balance-actions { display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: flex-end; gap: 8px; width: max-content; min-width: max-content; }
+    .balance-actions .compact-button { min-height: 38px; white-space: nowrap; padding-inline: 7px; font-size: 12px; }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
     .stat-card { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
     .stat-card strong { display: block; margin-top: 6px; font-size: 25px; color: var(--accent); }
@@ -28,7 +29,7 @@
     .leaderboard-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
     .low-stock-warning { position: fixed; left: 50%; bottom: 22px; z-index: 25; width: min(560px, calc(100% - 32px)); padding: 15px 18px; border: 1px solid #ff6d68; border-radius: 10px; background: #8e2728; color: #fff; font-weight: 800; box-shadow: 0 10px 30px #0008; opacity: 0; pointer-events: none; transform: translate(-50%, 18px); transition: opacity .2s, transform .2s; }
     .low-stock-warning.is-visible { opacity: 1; transform: translate(-50%, 0); }
-    @media (max-width: 700px) { .inventory-row { grid-template-columns: 1fr 1fr; } .inventory-row strong { grid-column: 1 / -1; } .balance-actions { justify-content: stretch; } .balance-actions button { flex: 1; } .stats-layout { grid-template-columns: 1fr; } .stats-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 700px) { .inventory-row { grid-template-columns: 1fr 1fr; } .inventory-row strong { grid-column: 1 / -1; } .balance-row { grid-template-columns: minmax(0, 1fr) max-content; } .balance-actions { justify-content: stretch; } .balance-actions button { flex: 0 0 auto; } .stats-layout { grid-template-columns: 1fr; } .stats-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .inventory-row { grid-template-columns: 1fr 1fr; } }
   </style>
   <title>BarTab</title>
